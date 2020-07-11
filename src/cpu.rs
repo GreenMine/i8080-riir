@@ -25,29 +25,47 @@ impl Cpu {
             &self.memory[0..program.len() as u16]
         );
 
-        while (self.registers.pc) as usize != program.len() + 1 {
+        //        while (self.registers.pc) as usize != program.len() + 1 {
+        for _ in 0..16 {
             let opcode = self.get_w();
             println!(
                 "Current command: {}({:2X})",
                 assembler::disassembler(opcode),
                 opcode
             );
+            //???
             match opcode {
-                0x78 => self.registers.a = self.registers.b,
-                0x47 => self.registers.b = self.registers.a,
-                0x3c => self.registers.a += 1,
-                0x3e => self.registers.a = self.get_w(),
+                //LDA
                 0x3a => {
                     let var_adress = self.get_dw();
                     self.registers.a = self.memory[var_adress]
                 }
+                //JMP
                 0xc3 => {
                     self.registers.pc = self.get_dw();
                     continue;
                 }
+                //TODO: add more smart operator then AND
+                //MOV
+                _ if opcode & 0b0100_0000 != 0 => {
+                    let value = *(self.bin_as_register(Cpu::get_second_argument(opcode)));
+                    let to = self.bin_as_register(Cpu::get_first_argument(opcode));
+                    *to = value;
+                }
+                //INR
+                _ if opcode & 0b0100 != 0b0100 => {
+                    let to = self.bin_as_register(Cpu::get_first_argument(opcode));
+                    *to += 1;
+                }
+                //MVI
+                _ if opcode & 0b110 != 0b0110 => {
+                    let value = self.get_w();
+                    let to = self.bin_as_register(Cpu::get_first_argument(opcode));
+                    *to = value;
+                }
                 _ => unreachable!(),
             }
-            //            println!("Processor data: {:?}", self);
+            println!("Processor data: {:?}", self);
         }
     }
 }
@@ -68,5 +86,29 @@ impl Cpu {
 
     fn get_slice(&self, start: u16, amount: u16) -> &[u8] {
         &self.memory[start..start + amount + 1]
+    }
+}
+
+//Binary as register
+impl Cpu {
+    fn bin_as_register(&mut self, b: u8) -> &mut u8 {
+        match b {
+            0b000 => &mut self.registers.b,
+            0b001 => &mut self.registers.c,
+            0b010 => &mut self.registers.d,
+            0b011 => &mut self.registers.e,
+            0b100 => &mut self.registers.h,
+            0b101 => &mut self.registers.l,
+            0b110 => unimplemented!(), //&mut self.registers.m,//TODO: M – содержимое ячейки памяти, адресуемое регистровой парой L .
+            0b111 => &mut self.registers.a,
+            _ => unreachable!(),
+        }
+    }
+
+    fn get_first_argument(op: u8) -> u8 {
+        (op & 0b111000) >> 3
+    }
+    fn get_second_argument(op: u8) -> u8 {
+        op & 0b000111
     }
 }

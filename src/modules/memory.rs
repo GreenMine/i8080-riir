@@ -18,7 +18,7 @@ impl Memory {
 
 impl fmt::Debug for Memory {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
-        write!(fmt, "{:x?}", self.get_memory(0, 16))
+        write!(fmt, "{:x?}", self.get_memory(0x0100, 0x0100 + 0xF))
     }
 }
 

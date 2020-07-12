@@ -25,8 +25,8 @@ impl Cpu {
             &self.memory[0..program.len() as u16]
         );
 
-        //        while (self.registers.pc) as usize != program.len() + 1 {
-        for _ in 0..16 {
+        while (self.registers.pc) as usize != program.len() {
+            //        for _ in 0..16 {
             let opcode = self.get_w();
             println!(
                 "Current command: {}({:2X})",
@@ -45,7 +45,6 @@ impl Cpu {
                     self.registers.pc = self.get_dw();
                     continue;
                 }
-                //TODO: add more smart operator then AND
                 //MOV
                 _ if opcode & 0b0100_0000 != 0 => {
                     let value = *(self.bin_as_register(Cpu::get_second_argument(opcode)));
@@ -53,17 +52,18 @@ impl Cpu {
                     *to = value;
                 }
                 //INR
-                _ if opcode & 0b0100 != 0b0100 => {
+                _ if (opcode & 0b0111) ^ 0b0100 == 0 => {
+                    println!("inr??");
                     let to = self.bin_as_register(Cpu::get_first_argument(opcode));
                     *to += 1;
                 }
                 //MVI
-                _ if opcode & 0b110 != 0b0110 => {
+                _ if (opcode & 0b0111) ^ 0b110 == 0 => {
                     let value = self.get_w();
                     let to = self.bin_as_register(Cpu::get_first_argument(opcode));
                     *to = value;
                 }
-                _ => unreachable!(),
+                _ => unreachable!("{:x}", opcode),
             }
             println!("Processor data: {:?}", self);
         }
@@ -84,7 +84,7 @@ impl Cpu {
         data
     }
 
-    fn get_slice(&self, start: u16, amount: u16) -> &[u8] {
+    fn _get_slice(&self, start: u16, amount: u16) -> &[u8] {
         &self.memory[start..start + amount + 1]
     }
 }

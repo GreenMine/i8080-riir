@@ -22,6 +22,14 @@ pub struct Registers {
     pub sp: u16, //Stack pointer
 }
 
+pub enum Flag {
+    Sign = 7,
+    Zero = 6,
+    ACarry = 4,
+    Parity = 2,
+    Carry = 0,
+}
+
 impl Registers {
     pub fn new() -> Self {
         Self {
@@ -36,5 +44,18 @@ impl Registers {
             pc: 0,
             sp: 0,
         }
+    }
+
+    pub fn set_flag(&mut self, flag: Flag, value: bool) -> () {
+        let mask = (value as u8) << flag as u8;
+        self.f = if value {
+            self.f | mask
+        } else {
+            self.f & (!mask)
+        }
+    }
+
+    pub fn get_flag(&self, flag: Flag) -> bool {
+        (self.f >> (flag as u8) & 1) != 0
     }
 }

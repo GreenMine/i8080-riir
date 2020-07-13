@@ -1,19 +1,23 @@
 use crate::{
     ext,
-    modules::{assembler, memory, registers},
+    modules::{
+        assembler,
+        memory::Memory,
+        registers::{Flag, Registers},
+    },
 };
 
 #[derive(Debug)]
 pub struct Cpu {
-    memory: memory::Memory,
-    registers: registers::Registers,
+    pub(crate) memory: Memory,
+    pub(crate) registers: Registers,
 }
 
 impl Cpu {
     pub fn new() -> Self {
         Self {
-            memory: memory::Memory::new(65536),
-            registers: registers::Registers::new(),
+            memory: Memory::new(65536),
+            registers: Registers::new(),
         }
     }
 
@@ -25,7 +29,7 @@ impl Cpu {
             &self.memory[0..program.len() as u16]
         );
 
-        while (self.registers.pc) as usize != program.len() {
+        while self.registers.pc as usize != program.len() {
             //        for _ in 0..16 {
             let opcode = self.get_w();
             println!(
@@ -51,6 +55,12 @@ impl Cpu {
                     let to = self.bin_as_register(Cpu::get_first_argument(opcode));
                     *to = value;
                 }
+                //ADD
+                _ if opcode & 0b1000_0000 != 0 => {
+                    let value = *(self.bin_as_register(Cpu::get_second_argument(opcode)));
+                    self.add(value)
+                }
+                //mask 0b0111 for command like inr, mvi and etc.
                 //INR
                 _ if (opcode & 0b0111) ^ 0b0100 == 0 => {
                     println!("inr??");
@@ -63,10 +73,29 @@ impl Cpu {
                     let to = self.bin_as_register(Cpu::get_first_argument(opcode));
                     *to = value;
                 }
+
                 _ => unreachable!("{:x}", opcode),
             }
             println!("Processor data: {:?}", self);
         }
+    }
+}
+
+//ALU Operations
+impl Cpu {
+    fn add(&mut self, value: u8) {
+        self.registers.a = self.registers.a.wrapping_add(value);
+
+        self.registers.set_flag(Flag::Sign, false); //FIXME: change it:D
+        self.registers.set_flag(Flag::Zero, self.registers.a == 0);
+        self.registers
+            .set_flag(Flag::Parity, self.registers.a.count_ones() & 1 == 1);
+        self.registers
+            .set_flag(Flag::Carry, self.registers.a < value);
+        self.registers.set_flag(
+            Flag::ACarry,
+            (self.registers.a >> 4) & 1 == 1 && (value >> 3) & 1 == 0,
+        ) //TESTME
     }
 }
 

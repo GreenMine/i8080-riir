@@ -58,7 +58,7 @@ impl Cpu {
                 //ADD
                 _ if opcode & 0b1000_0000 != 0 => {
                     let value = *(self.bin_as_register(Cpu::get_second_argument(opcode)));
-                    self.add(value)
+                    self.alu_add(value)
                 }
                 //mask 0b0111 for command like inr, mvi and etc.
                 //INR
@@ -83,19 +83,18 @@ impl Cpu {
 
 //ALU Operations
 impl Cpu {
-    fn add(&mut self, value: u8) {
+    fn alu_add(&mut self, value: u8) {
+        self.registers
+            .set_flag(Flag::ACarry, (self.registers.a & 0xf) + (value & 0xf) > 0xf);
+
         self.registers.a = self.registers.a.wrapping_add(value);
 
         self.registers.set_flag(Flag::Sign, false); //FIXME: change it:D
         self.registers.set_flag(Flag::Zero, self.registers.a == 0);
         self.registers
-            .set_flag(Flag::Parity, self.registers.a.count_ones() & 1 == 1);
+            .set_flag(Flag::Parity, self.registers.a.count_ones() & 1 == 0);
         self.registers
             .set_flag(Flag::Carry, self.registers.a < value);
-        self.registers.set_flag(
-            Flag::ACarry,
-            (self.registers.a >> 4) & 1 == 1 && (value >> 3) & 1 == 0,
-        ) //TESTME
     }
 }
 

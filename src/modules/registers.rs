@@ -1,3 +1,5 @@
+use std::fmt;
+
 //TODO: get it back
 //pub struct Registers {
 //    pub psw: u16, //A and flags
@@ -8,7 +10,6 @@
 //    pub sp: u16,  //Stack pointer
 //}
 
-#[derive(Debug)]
 pub struct Registers {
     pub a: u8,
     pub f: u8, // The F register is indirectly accessible by the programer.
@@ -57,5 +58,12 @@ impl Registers {
 
     pub fn get_flag(&self, flag: Flag) -> bool {
         (self.f >> (flag as u8) & 1) != 0
+    }
+}
+
+impl fmt::Debug for Registers {
+    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+        write!(fmt, "A: {:X}, F:[S: {}, Z: {}, AC: {}, P: {}, C: {}], B: {:X}, C: {:X}, D: {:X}, E: {:X}, H: {:X}, L: {:X}, PC: {}, SP: {}", self.a,
+			self.get_flag(Flag::Sign), self.get_flag(Flag::Zero), self.get_flag(Flag::ACarry), self.get_flag(Flag::Parity), self.get_flag(Flag::Carry), self.b, self.c, self.d, self.e, self.h, self.l, self.pc, self.sp)
     }
 }

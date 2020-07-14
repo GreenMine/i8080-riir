@@ -48,16 +48,15 @@ impl Registers {
     }
 
     pub fn set_flag(&mut self, flag: Flag, value: bool) -> () {
-        let mask = (value as u8) << flag as u8;
-        self.f = if value {
-            self.f | mask
-        } else {
-            self.f & (!mask)
-        }
+        self.f |= (value as u8) << flag as u8;
     }
 
     pub fn get_flag(&self, flag: Flag) -> bool {
         (self.f >> (flag as u8) & 1) != 0
+    }
+
+    pub fn clr(&mut self) {
+        self.f = 0;
     }
 }
 

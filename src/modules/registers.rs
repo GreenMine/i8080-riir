@@ -31,6 +31,12 @@ pub enum Flag {
     Carry = 0,
 }
 
+pub enum DwRegisters {
+    PSW,
+    BC,
+    DE,
+    HL,
+}
 impl Registers {
     pub fn new() -> Self {
         Self {
@@ -47,6 +53,29 @@ impl Registers {
         }
     }
 
+    pub fn get_dw_reg(&mut self, reg: DwRegisters) -> u16 {
+        let dw = self.reg_as_link(reg);
+        ((*dw.0 as u16) << 8) | *dw.1 as u16
+    }
+
+    pub fn set_dw_reg(&mut self, reg: DwRegisters, value: u16) -> () {
+        let dw = self.reg_as_link(reg);
+        *dw.0 = (value >> 8) as u8;
+        *dw.1 = (value & 0xFF) as u8;
+    }
+
+    fn reg_as_link(&mut self, reg: DwRegisters) -> (&mut u8, &mut u8) {
+        match reg {
+            DwRegisters::PSW => (&mut self.a, &mut self.f),
+            DwRegisters::BC => (&mut self.b, &mut self.c),
+            DwRegisters::DE => (&mut self.d, &mut self.e),
+            DwRegisters::HL => (&mut self.h, &mut self.l),
+        }
+    }
+}
+
+//implementation for flags(F register)
+impl Registers {
     pub fn set_flag(&mut self, flag: Flag, value: bool) -> () {
         self.f |= (value as u8) << flag as u8;
     }

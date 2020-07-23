@@ -3,7 +3,7 @@ use crate::{
     modules::{
         assembler,
         memory::Memory,
-        registers::{Flag, Registers},
+        registers::{DwRegisters, Flag, Registers},
     },
 };
 
@@ -16,21 +16,19 @@ pub struct Cpu {
 impl Cpu {
     pub fn new() -> Self {
         Self {
-            memory: Memory::new(65536),
+            memory: Memory::new(),
             registers: Registers::new(),
         }
     }
 
     pub fn execute(&mut self, program: Vec<u8>) -> () {
-        self.memory[0..program.len() as u16].clone_from_slice(&program[..]); // maybe set program memory space to 0x100???
+        let program_memory = &mut self.memory.program[0..program.len() as u16];
+        program_memory.clone_from_slice(&program[..]);
 
-        println!(
-            "Loaded program: {:x?}",
-            &self.memory[0..program.len() as u16]
-        );
+        println!("Loaded program: {:x?}", program_memory);
 
         while self.registers.pc as usize != program.len() {
-            //        for _ in 0..16 {
+            //        for _ in 0..u32::MAX {
             let opcode = self.get_w();
             let opcode_h = opcode >> 4; //For opcodes where higher bits its a command
             println!(
@@ -43,24 +41,24 @@ impl Cpu {
                 //LDA
                 0x3a => {
                     let var_adress = self.get_dw();
-                    self.registers.a = self.memory[var_adress]
+                    self.registers.a = self.memory.program[var_adress]
                 }
                 //All kind of jumps
-                _ if (opcode_h >> 2) ^ 0b11 == 0 => {
-                    println!("{:b}", opcode & 0b11_1111);
-                    match opcode & 0b11_1111 {
-                        0b11 => self.alu_jmp(true),                                       //JMP
-                        0b1010 => self.alu_jmp(self.registers.get_flag(Flag::Zero)),      //JZ
-                        0b10 => self.alu_jmp(!self.registers.get_flag(Flag::Zero)),       //JNZ
-                        0b110010 => self.alu_jmp(self.registers.get_flag(Flag::Sign)),    //JP
-                        0b111010 => self.alu_jmp(!self.registers.get_flag(Flag::Sign)),   //JM
-                        0b11010 => self.alu_jmp(self.registers.get_flag(Flag::Carry)),    //JC
-                        0b10010 => self.alu_jmp(!self.registers.get_flag(Flag::Carry)),   //JNC
-                        0b101010 => self.alu_jmp(self.registers.get_flag(Flag::Parity)),  //JPE
-                        0b100010 => self.alu_jmp(!self.registers.get_flag(Flag::Parity)), //JPO
-                        _ => unreachable!(),
-                    }
+                0xC3 => self.alu_jmp(true), //JMP
+                0xCA => self.alu_jmp(self.registers.get_flag(Flag::Zero)), //JZ
+                0xC2 => self.alu_jmp(!self.registers.get_flag(Flag::Zero)), //JNZ
+                0xF2 => self.alu_jmp(self.registers.get_flag(Flag::Sign)), //JP
+                0xFA => self.alu_jmp(!self.registers.get_flag(Flag::Sign)), //JM
+                0xDA => self.alu_jmp(self.registers.get_flag(Flag::Carry)), //JC
+                0xD2 => self.alu_jmp(!self.registers.get_flag(Flag::Carry)), //JNC
+                0xEA => self.alu_jmp(self.registers.get_flag(Flag::Parity)), //JPE
+                0xE2 => self.alu_jmp(!self.registers.get_flag(Flag::Parity)), //JPO
+                //CALL
+                0xCD => {
+                    self.stack_push(self.registers.pc + 1);
+                    self.alu_jmp(true)
                 }
+                0xC9 => self.registers.pc = self.stack_pop(), //RET
                 //MOV
                 _ if opcode_h ^ 0b0100 == 0 => {
                     let value = *(self.bin_as_register(Cpu::get_second_argument(opcode)));
@@ -88,9 +86,8 @@ impl Cpu {
                 //mask 0b0111 for opcodes where command in lower bits.
                 //INR
                 _ if (opcode & 0b0111) ^ 0b0100 == 0 => {
-                    println!("inr??");
                     let to = self.bin_as_register(Cpu::get_first_argument(opcode));
-                    *to += 1;
+                    *to = (*to).wrapping_add(1);
                 }
                 //MVI
                 _ if (opcode & 0b0111) ^ 0b110 == 0 => {
@@ -98,11 +95,24 @@ impl Cpu {
                     let to = self.bin_as_register(Cpu::get_first_argument(opcode));
                     *to = value;
                 }
-
                 _ => unreachable!("{:x}", opcode),
             }
             println!("Processor data: {:?}", self);
         }
+    }
+}
+
+//Stack operations
+impl Cpu {
+    fn stack_push(&mut self, value: u16) -> () {
+        self.registers.sp += 1;
+        self.memory.stack[self.registers.sp] = value;
+    }
+
+    fn stack_pop(&mut self) -> u16 {
+        let ret = self.memory.stack[self.registers.sp];
+        self.registers.sp -= 1;
+        ret
     }
 }
 
@@ -149,19 +159,19 @@ impl Cpu {
 //Functions for read/write memory
 impl Cpu {
     fn get_w(&mut self) -> u8 {
-        let data = self.memory[self.registers.pc];
+        let data = self.memory.program[self.registers.pc];
         self.registers.pc += 1;
         data
     }
 
     fn get_dw(&mut self) -> u16 {
-        let data = ext::split_slice(&self.memory[self.registers.pc..self.registers.pc + 2]);
+        let data = ext::split_slice(&self.memory.program[self.registers.pc..self.registers.pc + 2]);
         self.registers.pc += 2;
         data
     }
 
     fn _get_slice(&self, start: u16, amount: u16) -> &[u8] {
-        &self.memory[start..start + amount + 1]
+        &self.memory.program[start..start + amount + 1]
     }
 }
 
@@ -175,9 +185,9 @@ impl Cpu {
             0b011 => &mut self.registers.e,
             0b100 => &mut self.registers.h,
             0b101 => &mut self.registers.l,
-            0b110 => unimplemented!(), //&mut self.registers.m,//TODO: M – содержимое ячейки памяти, адресуемое регистровой парой L .
+            0b110 => unimplemented!("M register"), //&mut self.registers.m,//TODO: M – содержимое ячейки памяти, адресуемое регистровой парой HL.
             0b111 => &mut self.registers.a,
-            _ => unreachable!(),
+            _ => unreachable!("Register? {}", b),
         }
     }
 

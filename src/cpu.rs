@@ -38,6 +38,11 @@ impl Cpu {
             );
             //???
             match opcode {
+                //ADI
+                0xC6 => {
+                    let value = self.get_w();
+                    self.alu_add(value)
+                }
                 //LDA
                 0x3a => {
                     let var_adress = self.get_dw();
@@ -65,6 +70,16 @@ impl Cpu {
                     let to = self.bin_as_register(Cpu::get_first_argument(opcode));
                     *to = value;
                 }
+                0xE6 => {
+                    let value = self.get_w();
+                    self.alu_and(value)
+                }
+                //ANA
+                _ if opcode_h ^ 0b1010 == 0 => {
+                    let value = *(self.bin_as_register(Cpu::get_second_argument(opcode)));
+                    self.alu_and(value);
+                }
+                //                0x0 => println!("NOP goted."), //NOP
                 //ADD
                 _ if opcode_h ^ 0b1000 == 0 => {
                     let value = *(self.bin_as_register(Cpu::get_second_argument(opcode)));
@@ -153,6 +168,19 @@ impl Cpu {
         if exp {
             self.registers.pc = to_adress;
         }
+    }
+
+    fn alu_and(&mut self, value: u8) -> () {
+        self.registers.clr();
+
+        self.registers.a &= value;
+
+        self.registers.set_flag(Flag::ACarry, true);
+        self.registers.set_flag(Flag::Sign, false); //FIXME: change it:D
+        self.registers.set_flag(Flag::Zero, self.registers.a == 0);
+        self.registers
+            .set_flag(Flag::Parity, self.registers.a.count_ones() & 1 == 0);
+        self.registers.set_flag(Flag::Carry, false);
     }
 }
 

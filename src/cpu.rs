@@ -30,7 +30,8 @@ impl Cpu {
         while self.registers.pc as usize != program.len() {
             //        for _ in 0..u32::MAX {
             let opcode = self.get_w();
-            let opcode_h = opcode >> 4; //For opcodes where higher bits its a command
+            let opcode_h = opcode >> 5; //For opcodes where higher bits its a command
+            let opcode_l = opcode & 0b0111; //For opcodes where command in lower bits.
             println!(
                 "Current command: {}({:2X})",
                 assembler::disassembler(opcode),
@@ -64,6 +65,7 @@ impl Cpu {
                     self.alu_jmp(true)
                 }
                 0xC9 => self.registers.pc = self.stack_pop(), //RET
+                0x76 => return,
                 //MOV
                 _ if opcode_h ^ 0b0100 == 0 => {
                     let value = *(self.bin_as_register(Cpu::get_second_argument(opcode)));
@@ -78,7 +80,7 @@ impl Cpu {
                 0x2F => self.registers.a = !self.registers.a, //CMA
                 0x3F => self
                     .registers
-                    .set_flag(Flag::Carry, !self.registers.get_flag(Flag::Carry)),
+                    .set_flag(Flag::Carry, !self.registers.get_flag(Flag::Carry)), //CMC
                 //ANA
                 _ if opcode_h ^ 0b1010 == 0 => {
                     let value = *(self.bin_as_register(Cpu::get_second_argument(opcode)));
@@ -106,17 +108,37 @@ impl Cpu {
                     let value = self.get_w();
                     self.alu_cmp(value)
                 }
-                //mask 0b0111 for opcodes where command in lower bits.
                 //INR
-                _ if (opcode & 0b0111) ^ 0b0100 == 0 => {
+                _ if opcode_l ^ 0b100 == 0 => {
                     let to = self.bin_as_register(Cpu::get_first_argument(opcode));
                     *to = (*to).wrapping_add(1);
                 }
+                //DCR
+                _ if opcode_l ^ 0b101 == 0 => {
+                    let to = self.bin_as_register(Cpu::get_first_argument(opcode));
+                    *to = (*to).wrapping_sub(1);
+                }
                 //MVI
-                _ if (opcode & 0b0111) ^ 0b110 == 0 => {
+                _ if opcode_l ^ 0b110 == 0 => {
                     let value = self.get_w();
                     let to = self.bin_as_register(Cpu::get_first_argument(opcode));
                     *to = value;
+                }
+                //NOTE: PUSH and POP have a special 11 bit in height half of opcode
+                //PUSH
+                _ if ((opcode_h >> 2) ^ 0b11 == 0) && (opcode_l ^ 0b101 == 0) => {
+                    let value = self
+                        .registers
+                        .get_dw_reg(Cpu::bin_as_dregister(Cpu::get_first_argument(opcode)));
+                    self.stack_push(value)
+                }
+                //POP
+                _ if ((opcode_h >> 2) ^ 0b11 == 0) && (opcode_l ^ 0b001 == 0) => {
+                    let value = self.stack_pop();
+                    self.registers.set_dw_reg(
+                        Cpu::bin_as_dregister(Cpu::get_first_argument(opcode)),
+                        value,
+                    )
                 }
                 _ => unreachable!("{:x}", opcode),
             }
@@ -230,6 +252,16 @@ impl Cpu {
             0b110 => unimplemented!("M register"), //&mut self.registers.m,//TODO: M – содержимое ячейки памяти, адресуемое регистровой парой HL.
             0b111 => &mut self.registers.a,
             _ => unreachable!("Register? {}", b),
+        }
+    }
+
+    fn bin_as_dregister(b: u8) -> DwRegisters {
+        match b {
+            0b000 => DwRegisters::BC,
+            0b010 => DwRegisters::DE,
+            0b100 => DwRegisters::HL,
+            0b110 => DwRegisters::PSW,
+            _ => unreachable!("DW registers {} can't be reach:D", b),
         }
     }
 

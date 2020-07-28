@@ -70,10 +70,15 @@ impl Cpu {
                     let to = self.bin_as_register(Cpu::get_first_argument(opcode));
                     *to = value;
                 }
+                //ANI
                 0xE6 => {
                     let value = self.get_w();
                     self.alu_and(value)
                 }
+                0x2F => self.registers.a = !self.registers.a, //CMA
+                0x3F => self
+                    .registers
+                    .set_flag(Flag::Carry, !self.registers.get_flag(Flag::Carry)),
                 //ANA
                 _ if opcode_h ^ 0b1010 == 0 => {
                     let value = *(self.bin_as_register(Cpu::get_second_argument(opcode)));
@@ -93,10 +98,13 @@ impl Cpu {
                 //CMP
                 _ if opcode_h ^ 0b1011 == 0 => {
                     //real opcode is 0b10111, but no matter
-                    let temp = self.registers.a;
                     let value = *(self.bin_as_register(Cpu::get_second_argument(opcode)));
-                    self.alu_sub(value);
-                    self.registers.a = temp;
+                    self.alu_cmp(value)
+                }
+                //CPI
+                0xFE => {
+                    let value = self.get_w();
+                    self.alu_cmp(value)
                 }
                 //mask 0b0111 for opcodes where command in lower bits.
                 //INR
@@ -161,6 +169,12 @@ impl Cpu {
             .set_flag(Flag::Parity, self.registers.a.count_ones() & 1 == 0);
         self.registers
             .set_flag(Flag::Carry, self.registers.a > temp);
+    }
+
+    fn alu_cmp(&mut self, value: u8) -> () {
+        let temp = self.registers.a;
+        self.alu_sub(value);
+        self.registers.a = temp;
     }
 
     fn alu_jmp(&mut self, exp: bool) {

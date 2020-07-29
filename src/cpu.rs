@@ -65,7 +65,23 @@ impl Cpu {
                     self.alu_jmp(true)
                 }
                 0xC9 => self.registers.pc = self.stack_pop(), //RET
-                0x76 => return,
+                0x76 => return,                               //HLT
+                //NOTE: PUSH and POP have a special 11 bit in height half of opcode
+                //PUSH
+                _ if ((opcode_h >> 1) ^ 0b11 == 0) && (opcode_l ^ 0b101 == 0) => {
+                    let value = self
+                        .registers
+                        .get_dw_reg(Cpu::bin_as_dregister(Cpu::get_first_argument(opcode)));
+                    self.stack_push(value)
+                }
+                //POP
+                _ if ((opcode_h >> 1) ^ 0b11 == 0) && (opcode_l ^ 0b001 == 0) => {
+                    let value = self.stack_pop();
+                    self.registers.set_dw_reg(
+                        Cpu::bin_as_dregister(Cpu::get_first_argument(opcode)),
+                        value,
+                    )
+                }
                 //MOV
                 _ if opcode_h ^ 0b0100 == 0 => {
                     let value = *(self.bin_as_register(Cpu::get_second_argument(opcode)));
@@ -123,22 +139,6 @@ impl Cpu {
                     let value = self.get_w();
                     let to = self.bin_as_register(Cpu::get_first_argument(opcode));
                     *to = value;
-                }
-                //NOTE: PUSH and POP have a special 11 bit in height half of opcode
-                //PUSH
-                _ if ((opcode_h >> 2) ^ 0b11 == 0) && (opcode_l ^ 0b101 == 0) => {
-                    let value = self
-                        .registers
-                        .get_dw_reg(Cpu::bin_as_dregister(Cpu::get_first_argument(opcode)));
-                    self.stack_push(value)
-                }
-                //POP
-                _ if ((opcode_h >> 2) ^ 0b11 == 0) && (opcode_l ^ 0b001 == 0) => {
-                    let value = self.stack_pop();
-                    self.registers.set_dw_reg(
-                        Cpu::bin_as_dregister(Cpu::get_first_argument(opcode)),
-                        value,
-                    )
                 }
                 _ => unreachable!("{:x}", opcode),
             }

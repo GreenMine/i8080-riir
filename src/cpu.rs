@@ -20,7 +20,7 @@ pub struct Cpu {
  * MVI: 00TTT110, where
  * TTT - register where data will be moves
  * FFF - register from which data will be moves
- * Means, if its immediate type of command, it xor second bite of command, and set "FFF" to 110
+ * Means, if its immediate type of command, it xor second bit of command, and set "FFF" to 110
  */
 macro_rules! check_cmd {
     ($f:stmt, $cmd:expr, $opcode:ident, $needed_opcode:literal, $is_a:literal, $self:ident, $to:ident, $from:ident) => (
@@ -30,7 +30,7 @@ macro_rules! check_cmd {
             $f
             continue;
         }
-		if $cmd ^ ($needed_opcode ^ 0b0100) == 0 && ($opcode & 0b111) == 0b110 {
+		if $cmd ^ ($needed_opcode ^ 0b01000) == 0 && ($opcode & 0b111) == 0b110 {
             let $from = $self.get_w();
             let $to: &mut u8 = if $is_a {&mut $self.registers.a} else {$self.registers.bin_as_register(Cpu::get_first_argument($opcode))};
             $f
@@ -56,7 +56,7 @@ impl Cpu {
         while self.registers.pc as usize != program.len() {
             //        for _ in 0..u32::MAX {
             let opcode = self.get_w();
-            let opcode_h = opcode >> 4; //For opcodes where higher bits its a command
+            let opcode_h = opcode >> 3; //For opcodes where higher bits its a command
             let opcode_l = opcode & 0b0111; //For opcodes where command in lower bits.
 			#[cfg(debug_assertions)] {
 				println!("Processor data: {:?}", self);
@@ -67,21 +67,23 @@ impl Cpu {
 				);
 			}
 
+			//ADC and ACI
+            check_cmd!(self.alu_add(dbg!(value) + self.registers.get_flag(Flag::Carry) as u8), opcode_h, opcode, 0b10001, true, self, _to, value);
             //SUB and SUI
-            check_cmd!(self.alu_sub(value), opcode_h, opcode, 0b1001, true, self, _to, value);
+            check_cmd!(self.alu_sub(value), opcode_h, opcode, 0b10010, true, self, _to, value);
             //CMP and CPI
             check_cmd!({
                     let temp = self.registers.a;
                     self.alu_sub(value);
                     self.registers.a = temp;
                 },
-				opcode_h,opcode, 0b1011, true, self, _to, value);
+				opcode_h,opcode, 0b10110, true, self, _to, value);
             //ANA and ANI
-            check_cmd!(self.alu_and(value), opcode_h, opcode, 0b1010, true, self, _to, value);
+            check_cmd!(self.alu_and(value), opcode_h, opcode, 0b10100, true, self, _to, value);
             //ADD and ADI
-            check_cmd!(self.alu_add(value), opcode_h, opcode, 0b1000, true, self, _to, value);
+            check_cmd!(self.alu_add(value), opcode_h, opcode, 0b10000, true, self, _to, value);
             //MOV and MVI
-            check_cmd!(*to = value, opcode_h & 0b0, opcode, 0b0100, false, self, to, value);
+            check_cmd!(*to = value, opcode_h & 0b00, opcode, 0b01000, false, self, to, value);
             //???
             match opcode {
                 //LDA
@@ -108,12 +110,12 @@ impl Cpu {
                 0x76 => return,                               //HLT
                 //NOTE: PUSH and POP have a special 11 bit in height half of opcode
                 //PUSH
-                _ if ((opcode_h >> 2) ^ 0b11 == 0) && (opcode_l ^ 0b101 == 0) => {
+                _ if ((opcode_h >> 3) ^ 0b11 == 0) && (opcode_l ^ 0b101 == 0) => {
                     let value = self.registers.get_dw_reg(Cpu::get_first_argument(opcode));
                     self.stack_push(value)
                 }
                 //POP
-                _ if ((opcode_h >> 2) ^ 0b11 == 0) && (opcode_l ^ 0b001 == 0) => {
+                _ if ((opcode_h >> 3) ^ 0b11 == 0) && (opcode_l ^ 0b001 == 0) => {
                     let value = self.stack_pop();
                     self.registers
                         .set_dw_reg(Cpu::get_first_argument(opcode), value)

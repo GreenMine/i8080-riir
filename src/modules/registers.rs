@@ -31,12 +31,14 @@ pub enum Flag {
     Carry = 0,
 }
 
-pub enum DwRegisters {
-    PSW,
-    BC,
-    DE,
-    HL,
-}
+//#[repr(u8)]
+//pub enum DwRegisters {
+//    BC,
+//    DE,
+//    HL,
+//    PSW,
+//}
+
 impl Registers {
     pub fn new() -> Self {
         Self {
@@ -53,23 +55,38 @@ impl Registers {
         }
     }
 
-    pub fn get_dw_reg(&mut self, reg: DwRegisters) -> u16 {
-        let dw = self.reg_as_link(reg);
+    pub fn get_dw_reg(&mut self, b: u8) -> u16 {
+        let dw = self.bin_as_dregister(b);
         ((*dw.0 as u16) << 8) | *dw.1 as u16
     }
 
-    pub fn set_dw_reg(&mut self, reg: DwRegisters, value: u16) -> () {
-        let dw = self.reg_as_link(reg);
+    pub fn set_dw_reg(&mut self, b: u8, value: u16) -> () {
+        let dw = self.bin_as_dregister(b);
         *dw.0 = (value >> 8) as u8;
         *dw.1 = (value & 0xFF) as u8;
     }
 
-    fn reg_as_link(&mut self, reg: DwRegisters) -> (&mut u8, &mut u8) {
-        match reg {
-            DwRegisters::PSW => (&mut self.a, &mut self.f),
-            DwRegisters::BC => (&mut self.b, &mut self.c),
-            DwRegisters::DE => (&mut self.d, &mut self.e),
-            DwRegisters::HL => (&mut self.h, &mut self.l),
+    pub(crate) fn bin_as_dregister(&mut self, b: u8) -> (&mut u8, &mut u8) {
+        match b {
+            0b000 => (&mut self.b, &mut self.c),
+            0b010 => (&mut self.d, &mut self.e),
+            0b100 => (&mut self.h, &mut self.l),
+            0b110 => (&mut self.a, &mut self.f),
+            _ => unreachable!("DWREGISTER CAN'T BE REACH {}", b),
+        }
+    }
+
+    pub(crate) fn bin_as_register(&mut self, b: u8) -> &mut u8 {
+        match b {
+            0b000 => &mut self.b,
+            0b001 => &mut self.c,
+            0b010 => &mut self.d,
+            0b011 => &mut self.e,
+            0b100 => &mut self.h,
+            0b101 => &mut self.l,
+            0b110 => unimplemented!("M register"), //&mut self.registers.m,//TODO: M – содержимое ячейки памяти, адресуемое регистровой парой HL.
+            0b111 => &mut self.a,
+            _ => unreachable!("Register? {}", b),
         }
     }
 }
